@@ -1,0 +1,78 @@
+### **2.** Colorimetric Total aSyn ELISA data analysis
+
+This analysis method was only used for total aSyn quantification of matched brain and plasma samples (Figure 2H, Supplemental Figures 2 and 3, Supplementary Table 1) using the Colorimetric LEGEND MAX™ Human α-Synuclein ELISA Kit (cat. 448607) following the discontinuation of the chemiluminescent version (cat. 844101) of this ELISA.
+
+#### **2a.** Generate a standard curve using a 5-parameter logistic model
+
+Standard curve should range from 10.2 pg/mL to 650 pg/mL. OD for highest point on standard curve ranged from 2.25 - 2.75.
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+# This example is generated using a dummy data set measuring the concentration of aSyn in red blood cells (RBCs).
+
+# Read in values for standard curve
+stand_Test_Color <- read.csv("03_tsynSTD.csv") 
+
+# Remove the blank on the standard curve as it will confound the model
+stand_Test_Color<-stand_Test_Color[-c(8), ] 
+
+# Read in values for samples
+tSynsamples_Color <- read.csv("04_tsynSamples.csv")
+
+# Plot the standard curve
+np5_tsynSTD_Color<- nplr(x=stand_Test_Color$Standard, y=stand_Test_Color$Standard_OD, npars = 5, useLog = FALSE)
+
+plot(np5_tsynSTD_Color, pcol="aquamarine1", lcol="#283350", showGOF = FALSE,
+     showEstim= FALSE, showInfl=TRUE, showCI = TRUE, cex.main = 1.5, 
+     main="Colorimetric total-syn ELISA Standard curve", cex.main = 1,
+     xlab = expression("pg/ml"),
+     xlim = c(0,650),
+     ylim = c(0,3.0),
+     ylab = expression("OD"))
+```
+
+------------------------------------------------------------------------
+
+#### **2b.** Solve the 5-parameter logistic model to calculate total aSyn concentrations from average OD readings across duplicates
+
+These ODs have adjusted to subtract out background signal (from a blank well) and averaged across duplicates in Excel.
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+
+# Solve the 5 parameter model for "x" (sample aSyn quantification) using the equation: log10(x) <- (Scal*Xmid +(ln(1/(((Bottom-Top)/(Bottom-y))^(1/s))-1)/ln(10)))/scal to return the log10([aSyn]) in a given biofluid sample and save it in your data set as "protconc5"
+
+tSynsamples_Color$protconc5 <- (getPar(np5_tsynSTD_Color)$params$scal*getPar(np5_tsynSTD_Color)$params$xmid + log(1/(((getPar(np5_tsynSTD_Color)$params$bottom - getPar(np5_tsynSTD_Color)$params$top)/(getPar(np5_tsynSTD_Color)$params$bottom - tSynsamples_Color$RBC_OD))^(1/getPar(np5_tsynSTD_Color)$params$s)-1))/log(10))/getPar(np5_tsynSTD_Color)$params$scal
+```
+
+------------------------------------------------------------------------
+
+#### **2c. Plot sample values onto the standard curve**
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+# Plot samples onto standard curve from corresponding plate
+plot(np5_tsynSTD_Color, pcol="azure", lcol= "azure3", showGOF = TRUE,
+     showEstim= FALSE, showInfl=FALSE, showCI = TRUE, cex.main = 1, 
+     main="Colorimetric total-syn ELISA \nStandard curve with samples plotted",
+     xlab = expression("pg/ml"),
+     ylab = expression("OD"),
+     xlim = c(0,650),
+     ylim = c(0, 3.0))+
+lines(tSynsamples_Color$protconc5,
+      tSynsamples_Color$RBC_OD,type="points",
+      pch = 21, cex = 2, col="gray2", bg = "red3")
+```
+
+------------------------------------------------------------------------
+
+#### **2d. Export the values for downstream analyses**
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+
+# Preserve the sample values by transforming, saving, and exporting
+tSynsamples_Color$tsyn_pg_samples<-tSynsamples_Color$protconc5
+tSynsamples_Color$tsyn_ng_samples<-tSynsamples_Color$tsyn_pg_samples/1000
+
+# Optionally, before exporting, values can be dilution corrected and saved in a new column called "Asyn_9027_pg_dilcorr" using the following line:
+# Example: tSynsamples_Color$tsyn_ng_samples_dilcorr<-(dilution correction factor)*tSynsamples_Color$tsyn_ng_samples
+
+# Export your data to desired destination
+  # Example: write.csv(tSynsamples_Color,"C: Path to desired location//Title of file.csv", row.names = FALSE)
